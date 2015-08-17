@@ -1081,9 +1081,8 @@ if SERVER then -- Server Side
         if AURA.INTERFACEABLE.SensorArray and TARGET then
             AURA.INTERFACEABLE.SensorArray:getWirelink()["Target"] = TARGET
         end
-        --@TODO
-        --Fix this
-        if AURA.INTERFACEABLE.ComputerCore and TARGET then
+        
+        if AURA.INTERFACEABLE.ComputerCore and TARGET and TARGET:isValid() then
             AURA.INTERFACEABLE.ComputerCore:getWirelink()["Target"] = TARGET
         end
     end
