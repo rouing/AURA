@@ -551,7 +551,7 @@ if SERVER then -- Server Side
 		end
 	end
 
-	AURA.COMMANDS.FindWeight = function()
+	function AURA.COMMANDS.FindWeight()
 		local AE = OWNER:aimEntity()
 		if AE then
 			bsay("The weight of that is: " .. AE:getMass() .. ".")
@@ -561,7 +561,7 @@ if SERVER then -- Server Side
 		end
 	end
 
-	AURA.COMMANDS.FindColor = function()
+	function AURA.COMMANDS.FindColor()
 		local AE = OWNER:aimEntity()
 		if AE then
 			bsay("The color of that is: " .. AE:color() .. ".")
