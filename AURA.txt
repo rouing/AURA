@@ -1023,7 +1023,7 @@ if SERVER then -- Server Side
         end
     end
 
-    function AURA.COMMANDS.Target(e,f)
+    function AURA.COMMANDS.Target(e,f,g)
         if f == "" or f == nil then
             if e == "this" or e == "that" then
                 TARGET = OWNER:aimEntity()
@@ -1031,17 +1031,23 @@ if SERVER then -- Server Side
                     local Owner = TARGET:owner()
                     if Owner and Owner:isValid() then
                         TARGETStatus = Owner:hasDamageEnabled()
-                        bsay("Tareting: " .. TARGET:class() .. ". Owned by: " .. Owner)
+                        bsay("Targeting: " .. TARGET:class() .. ". Owned by: " .. Owner)
                         bsay("Owner has damage enabled?: " .. tostring(TARGETStatus))
                         timer.start("CheckDamageStatus")
                     end
                 else
-                    bsay("You are not looking at anything!")
+                    if not g then
+                        bsay("You are not looking at anything!")
+                        AURA.UTILITY.PlaySound(AURA.SOUNDS.Error,4,1)
+                    end
                 end
             else
                 TARGET = find.playerByName(e)
                 if TARGET == nil then
-                    bsay("Invalid Player!")
+                    if not g then
+                        bsay("Invalid Player!")
+                        AURA.UTILITY.PlaySound(AURA.SOUNDS.Error,4,1)
+                    end
                 else
                     TARGETStatus = TARGET:hasDamageEnabled()
                     bsay("Targeting: " .. TARGET:name())
@@ -1049,6 +1055,9 @@ if SERVER then -- Server Side
                     timer.start("CheckDamageStatus")
                 end
             end
+        elseif f == "direct" then
+            bsay("Targeting: " .. e)
+            TARGET = e
         elseif TARGETTYPES[f] then
             local Owner = find.playerByName(e)
             if Owner then
@@ -1066,22 +1075,28 @@ if SERVER then -- Server Side
                         timer.start("CheckDamageStatus")
                     end
                 else
-                    bsay("Target not found!")
-                    AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
+                    if not g then
+                        bsay("Target not found!")
+                        AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
+                    end
                 end
             else
-                bsay("Invalid Player!")
-                AURA.UTILITY.PlaySound(AURA.SOUNDS.Error,4,1)
+                if not g then
+                    bsay("Invalid Player!")
+                    AURA.UTILITY.PlaySound(AURA.SOUNDS.Error,4,1)
+                end
             end
         else
-            bsay("Invalid target type!")
-            AURA.UTILITY.PlaySound(AURA.SOUNDS.Error,4,1)
+            if not g then
+                bsay("Invalid target type!")
+                AURA.UTILITY.PlaySound(AURA.SOUNDS.Error,4,1)
+            end
         end
 
         if AURA.INTERFACEABLE.SensorArray and TARGET then
             AURA.INTERFACEABLE.SensorArray:getWirelink()["Target"] = TARGET
         end
-        
+
         if AURA.INTERFACEABLE.ComputerCore and TARGET and TARGET:isValid() then
             AURA.INTERFACEABLE.ComputerCore:getWirelink()["Target"] = TARGET
         end
@@ -1286,7 +1301,10 @@ if SERVER then -- Server Side
                     if attacker and attacker:isValid() then
                         if attacker:name() ~= nil then
                             bsay("Taking damage from: " .. attacker:name())
-                            AURA.COMMANDS.Target(attacker:name(),"core")
+                            AURA.COMMANDS.Target(attacker:name(), "core", 1)
+                            if TARGET:isValid() == false then
+                                AURA.COMMANDS.Target(attacker, "direct", 1)
+                            end
                         else
                             bsay("Taking damage from: " .. attacker:class())
                         end
