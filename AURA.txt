@@ -19,10 +19,6 @@ function bsay(e)
     --chat.botSay("Arua",e)
 end
 
-function pbsay(ply,e)
-    printColor(Color(255,0,0),"[AI] ",Color(100,100,255),"Aura",Color(255,255,255),": ",e)
-end
-
 if SERVER then -- Server Side
     -- Server Side Libraries
     local ply = _G.player
@@ -40,7 +36,11 @@ if SERVER then -- Server Side
     local SHIPNAME
 
     -- This is your target
-    local TARGET
+    local TARGET = nil
+    -- This is your targets current damage status
+    -- This is used to check if they turned off damage
+    -- in the middle of the fight
+    local TARGETStatus
 
     --[[
     These are the tables that hold data the processor will use
@@ -82,7 +82,6 @@ if SERVER then -- Server Side
     AURA.INTERFACEABLE.Sound        = {}
     AURA.INTERFACEABLE.LPRecievers  = {}
     AURA.INTERFACEABLE.ShipCannons  = {}
-    AURA.INTERFACEABLE.ComputerCore = {}
 
     -- The target information
     AURA.Target = {}
@@ -284,20 +283,38 @@ if SERVER then -- Server Side
     provide easy access to specific functions
     ]]--
 
+    --These are timer based utilites
     function AURA.UTILITY.findInShip()
         local LSCore = AURA.INTERFACEABLE.LSCore
         if LSCore then
             local Plys = find.allPlayers(function(E) return faction.getFaction(OWNER) ~= faction.getFaction(E) and E:getEnvironmentData().Entity == LSCore end)
             for I = 1, #Plys do
                 AURA.COMMANDS.beam(Plys[I],"shakur")
-                pbsay(Plys[I], "You have no authorization to be here!")
+                chat.tell(Plys[I],Color(255,0,0),"[AI] ",Color(100,100,255),"Aura",Color(255,255,255),": ","You have no authorization to be here!")
             end
         else
             bsay("A LS Core is required to find players in the ship!")
         end
     end
     timer.create("FindInShip",3,0,function() AURA.UTILITY.findInShip() end)
-    --timer.stop("FindInShip")
+
+   function AURA.UTILITY.targetDamageStatusChanged()
+        if TARGET and TARGET:isValid() then
+            if TARGETStatus then
+                TAR = TARGET
+                if TAR ~= "player" then
+                    TAR = TAR:owner()
+                end
+                if TAR:hasDamageEnabled() ~= TARGETStatus then
+                    TARGETStatus = TAR:hasDamageEnabled()
+                    bsay(TAR:name() .. " has changed their damage status to: " .. tostring(TARGETStatus))
+                end
+            end
+        else
+            timer.stop("CheckDamageStatus")
+        end
+    end
+    timer.create("CheckDamageStatus",3,0,function() AURA.UTILITY.targetDamageStatusChanged() end)
 
     function AURA.UTILITY.drawLetters() -- VERY COMPLICATED FOR WHAT IT DOES
         if SHIPNAME then -- check to see if SHIPNAME was defined
@@ -409,7 +426,6 @@ if SERVER then -- Server Side
             local v = Constrained[i]
             if not v then break end
             local class = v:class()
-
             -- Depends on the prop.
             if class == "prop_physics" then
                 -- I am using this for submaterials/skins
@@ -450,6 +466,8 @@ if SERVER then -- Server Side
                 if SHIPNAME ~= nil then
                     v:getWirelink()["Name"] = SHIPNAME
                 end
+            elseif class == "gmod_wire_teleporter" and not AURA.INTERFACEABLE.Adjuster then
+                AURA.INTERFACEABLE.Adjuster = v
             elseif class == "transporter_pad" and not AURA.INTERFACEABLE.TransporterPad then
                 AURA.INTERFACEABLE.TransporterPad = v
                 AURA.populateBeamPositions(MAP)
@@ -483,8 +501,6 @@ if SERVER then -- Server Side
                 AURA.INTERFACEABLE.LPRecievers[#AURA.INTERFACEABLE.LPRecievers + 1] = v
             elseif class == "ship_cannon" then
                 AURA.INTERFACEABLE.ShipCannons[#AURA.INTERFACEABLE.ShipCannons + 1] = v
-            else
-                -- Do Nothing.
             end
         end
         bsay("Finished finding interfaceable entities.")
@@ -791,11 +807,16 @@ if SERVER then -- Server Side
                 AURA.Status = "green"
                 bsay(SHIPNAME .. " is now at green status.")
 
-                AURA.COMMANDS.Shield(0)
-                AURA.COMMANDS.Forcefields(0)
+                AURA.INTERFACEABLE.Shield:getWirelink()["Activate"] = 0
 
                 if Core then
                     Core:getWirelink()["Enable Plating"] = 0
+                end
+
+                for i = 1, #AURA.INTERFACEABLE.Forcefields do
+                    local FF = AURA.INTERFACEABLE.Forcefields[ i ]
+                    if not FF then break end
+                    FF:getWirelink()["Activate"] = 0
                 end
 
                 for i = 1, #AURA.INTERFACEABLE.PROPS.Modbridge do
@@ -820,11 +841,16 @@ if SERVER then -- Server Side
                 AURA.Status = "yellow"
                 bsay(SHIPNAME .. " is now at yellow alert! Defences enabled.")
 
-                AURA.COMMANDS.Shield(1)
-                AURA.COMMANDS.Forcefields(1)
+                AURA.INTERFACEABLE.Shield:getWirelink()["Activate"] = 1
 
                 if Core then
                     Core:getWirelink()["Enable Plating"] = 1
+                end
+
+                for i = 1, #AURA.INTERFACEABLE.Forcefields do
+                    local FF = AURA.INTERFACEABLE.Forcefields[ i ]
+                    if not FF then break end
+                    FF:getWirelink()["Activate"] = 1
                 end
 
                 for i = 1, #AURA.INTERFACEABLE.PROPS.Modbridge do
@@ -851,8 +877,13 @@ if SERVER then -- Server Side
                 AURA.Status = "red"
                 bsay(SHIPNAME .. " is now at red alert!")
 
-                AURA.COMMANDS.Shield(1)
-                AURA.COMMANDS.Forcefields(1)
+                AURA.INTERFACEABLE.Shield:getWirelink()["Activate"] = 1
+
+                for i = 1, #AURA.INTERFACEABLE.Forcefields do
+                    local FF = AURA.INTERFACEABLE.Forcefields[ i ]
+                    if not FF then break end
+                    FF:getWirelink()["Activate"] = 1
+                end
 
                 if Core ~= nil then
                     Core:getWirelink()["Enable Plating"] = 1
@@ -882,11 +913,16 @@ if SERVER then -- Server Side
                 AURA.Status = "blue"
                 bsay(SHIPNAME .. " is now at blue alert!")
 
-                AURA.COMMANDS.Shield(0)
-                AURA.COMMANDS.Forcefields(0)
+                AURA.INTERFACEABLE.Shield:getWirelink()["Activate"] = 0
 
                 if Core ~= nil then
                     Core:getWirelink()["Enable Plating"] = 1
+                end
+
+                for i = 1, #AURA.INTERFACEABLE.Forcefields do
+                    local FF = AURA.INTERFACEABLE.Forcefields[ i ]
+                    if not FF then break end
+                    FF:getWirelink()["Activate"] = 1
                 end
 
                 for i = 1, #AURA.INTERFACEABLE.PROPS.Modbridge do
@@ -988,12 +1024,17 @@ if SERVER then -- Server Side
     end
 
     function AURA.COMMANDS.Target(e,f)
-        if f == "" then
+        if f == "" or f == nil then
             if e == "this" or e == "that" then
                 TARGET = OWNER:aimEntity()
                 if TARGET then
-                    bsay("Tareting: " .. TARGET:class() .. ". Owned by: " .. TARGET:owner())
-                    bsay("Owner has damage enabled?: " .. TARGET:owner():hasDamageEnabled())
+                    local Owner = TARGET:owner()
+                    if Owner and Owner:isValid() then
+                        TARGETStatus = Owner:hasDamageEnabled()
+                        bsay("Tareting: " .. TARGET:class() .. ". Owned by: " .. Owner)
+                        bsay("Owner has damage enabled?: " .. tostring(TARGETStatus))
+                        timer.start("CheckDamageStatus")
+                    end
                 else
                     bsay("You are not looking at anything!")
                 end
@@ -1002,8 +1043,10 @@ if SERVER then -- Server Side
                 if TARGET == nil then
                     bsay("Invalid Player!")
                 else
+                    TARGETStatus = TARGET:hasDamageEnabled()
                     bsay("Targeting: " .. TARGET:name())
-                    bsay("Damage enabled?: " .. TARGET:hasDamageEnabled():tostring())
+                    bsay("Damage enabled?: " .. tostring(TARGETStatus))
+                    timer.start("CheckDamageStatus")
                 end
             end
         elseif TARGETTYPES[f] then
@@ -1016,8 +1059,12 @@ if SERVER then -- Server Side
                     end
                 end)
                 if TARGET ~= nil then
-                    bsay("Targeting " .. TARGET:class() .. " owned by: " .. Owner:name())
-                    bsay("Owner has damage enabled?: " .. Owner:hasDamageEnabled():tostring())
+                    TARGETStatus = Owner:hasDamageEnabled()
+                    if Owner and Owner:isValid() then
+                        bsay("Targeting " .. TARGET:class() .. " owned by: " .. Owner:name())
+                        bsay("Owner has damage enabled?: " .. tostring(TARGETStatus))
+                        timer.start("CheckDamageStatus")
+                    end
                 else
                     bsay("Target not found!")
                     AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
@@ -1031,8 +1078,13 @@ if SERVER then -- Server Side
             AURA.UTILITY.PlaySound(AURA.SOUNDS.Error,4,1)
         end
 
-        if AURA.INTERFACEABLE.SensorArray then
+        if AURA.INTERFACEABLE.SensorArray and TARGET then
             AURA.INTERFACEABLE.SensorArray:getWirelink()["Target"] = TARGET
+        end
+        --@TODO
+        --Fix this
+        if AURA.INTERFACEABLE.ComputerCore and TARGET then
+            AURA.INTERFACEABLE.ComputerCore:getWirelink()["Target"] = TARGET
         end
     end
 
@@ -1070,6 +1122,18 @@ if SERVER then -- Server Side
         else
             bsay("No Ship Core connected!")
             AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
+        end
+    end
+
+    function AURA.COMMANDS.AdjustShip()
+        local TELE = AURA.INTERFACEABLE.Adjuster
+        if TELE then
+            TELE:getWirelink()["TargetAngle"] = OWNER:eyeAngles()
+            TELE:getWirelink()["TargetPos"] = OWNER:getPos()
+            TELE:getWirelink()["Jump"] = 1
+            timer.simple(1,function() TELE:getWirelink()["Jump"] = 0 end)
+        else
+            bsay("No Wire Teleporter connected.")
         end
     end
 
@@ -1142,6 +1206,8 @@ if SERVER then -- Server Side
 
     AURA.COMMANDS.NOARG["stop repair"]  = function() AURA.INTERFACEABLE.Core:fireRepairBeam(0) end
 
+    AURA.COMMANDS.NOARG["adjust ship"]   = function() AURA.COMMANDS.AdjustShip() end
+
     -- One Argument
     AURA.COMMANDS.ONEARG["divert shield power"] = function(e) AURA.COMMANDS.Shield(e) end
     AURA.COMMANDS.ONEARG["divert shields"]      = function(e) AURA.COMMANDS.Shield(e) end
@@ -1196,23 +1262,45 @@ if SERVER then -- Server Side
         end
     end
 
-    -- Notifiy player that we are now starting up this processor
-    bsay("Aura Bootup Sequence Starting.")
-
-    -- Find the interfaceable Entities
-    AURA.UTILITY.findInterfaceableEnts()
-
-    -- Draw the Ship Name
-    AURA.UTILITY.drawLetters()
-
-    --timer.simple(10,function() AURA.UTILITY.findInShip() end)
-
-    -- Populate target types
-    AURA.populateTargetTypes()
-
-    timer.simple(3,function() AURA.UTILITY.positionKeepers("Startup") end)
-    timer.simple(4,function() AURA.UTILITY.positionCannons("Startup") end)
+    function initalize()
+        bsay("Aura bootup sequence starting.")
+        timer.simple(1,function() AURA.UTILITY.findInterfaceableEnts() end)
+        timer.simple(3,function() AURA.UTILITY.drawLetters() end)
+        timer.simple(5,function() AURA.populateTargetTypes() end)
+        timer.simple(7,function() AURA.UTILITY.positionKeepers("Startup") end)
+        timer.simple(8,function() AURA.UTILITY.positionCannons("Startup") end)
+    end
 
     -- now listen to chat
-    chat.listen(chatToCommand)
+    initalize()
+    chat.listen(chatToCommand,OWNER)
+
+    --[[
+        This is the Hooks partition of this AI
+    ]]--
+
+    hook.add("EntityTakeDamage","TakingDamage",
+        function(ent,inflictor,attacker,amount)
+            if ent:owner() == OWNER then
+                if AURA.Status ~= "red" then
+                    AURA.COMMANDS.Status("red")
+                    if attacker and attacker:isValid() then
+                        if attacker:name() ~= nil then
+                            bsay("Taking damage from: " .. attacker:name())
+                            AURA.COMMANDS.Target(attacker:name(),"core")
+                        else
+                            bsay("Taking damage from: " .. attacker:class())
+                        end
+                    end
+                    if TARGET == nil and TARGET:isValid() == false then
+                        AURA.COMMANDS.Target(attacker:name())
+                    end
+                    if inflictor then
+                        bsay("Attacked with: " .. inflictor:class())
+                    end
+                end
+            end
+        end
+    )
+
 end
