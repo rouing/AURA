@@ -294,6 +294,7 @@ if SERVER then -- Server Side
 			end
 		else
 			bsay("A LS Core is required to find players in the ship!")
+			timer.stop("FindInShip")
 		end
 	end
 	timer.create("FindInShip",3,0,function() AURA.UTILITY.findInShip() end)
@@ -420,89 +421,86 @@ if SERVER then -- Server Side
 	-- Find all the entites that we can interface with
 	function AURA.UTILITY.findInterfaceableEnts()
 		bsay("Finding entites I can interface with..") -- Notify player
-		local Constrained = SELF:getConstraints() -- Find Constrained Entites
-
-		for i = 1, #Constrained do -- ipairs is heavy overhead
-			local v = Constrained[i]
-			if not v then break end
-			local class = v:class()
-			-- Depends on the prop.
-			if class == "prop_physics" then
-				-- I am using this for submaterials/skins
-				if string.find(v:model(),"modbridge/core") then
-					if AURA.INTERFACEABLE.PROPS.Modbridge == nil then
-						AURA.INTERFACEABLE.PROPS.Modbridge = {}
+		local Constrained = SELF:getConstraints(
+			function(E)
+				class = E:class()
+				if class == "prop_physics" then
+					-- I am using this for submaterials/skins
+					if string.find(v:model(),"modbridge/core") then
+						if AURA.INTERFACEABLE.PROPS.Modbridge == nil then
+							AURA.INTERFACEABLE.PROPS.Modbridge = {}
+						end
+						AURA.INTERFACEABLE.PROPS.Modbridge[#AURA.INTERFACEABLE.PROPS.Modbridge + 1 or 1] = v
+					elseif v:model() == "models/lt_c/holo_keypad.mdl" then
+						if AURA.INTERFACEABLE.PROPS.Keypads == nil then
+							AURA.INTERFACEABLE.PROPS.Keypads = {}
+						end
+						AURA.INTERFACEABLE.PROPS.Keypads[#AURA.INTERFACEABLE.PROPS.Keypads + 1 or 1] = v
 					end
-					AURA.INTERFACEABLE.PROPS.Modbridge[#AURA.INTERFACEABLE.PROPS.Modbridge + 1 or 1] = v
-				elseif v:model() == "models/lt_c/holo_keypad.mdl" then
-					if AURA.INTERFACEABLE.PROPS.Keypads == nil then
-						AURA.INTERFACEABLE.PROPS.Keypads = {}
+				elseif class == "gmod_wire_gps" then
+					if not LETTERS.A then -- Check to see if the table is populated by calling upon a letter
+						AURA.populateLetters()
 					end
-					AURA.INTERFACEABLE.PROPS.Keypads[#AURA.INTERFACEABLE.PROPS.Keypads + 1 or 1] = v
+					AURA.INTERFACEABLE.GPSs[#AURA.INTERFACEABLE.GPSs + 1] = v
+				elseif class == "gmod_wire_value" then
+					SHIPNAME = v:getWirelink()["1"]
+				elseif class == "ship_core" and not AURA.INTERFACEABLE.Core then
+					AURA.INTERFACEABLE.Core = v
+				elseif class == "st_shield_emitter" and not AURA.INTERFACEABLE.Shield then
+					AURA.INTERFACEABLE.Shield = v
+					AURA.populateWarpPositions(MAP)
+				elseif (class == "ship_drive" or class == "quantum_slipstream_drive") and not AURA.INTERFACEABLE.Drive then
+					AURA.INTERFACEABLE.Drive = v
+					AURA.popluateShieldDirections()
+				elseif (class == "cloaking_generator" or class == "st_cloaking_device") and not AURA.INTERFACEABLE.Cloak then
+					AURA.INTERFACEABLE.Cloak = v
+				elseif class == "computer_core" and not AURA.INTERFACEABLE.ComputerCore then
+					AURA.INTERFACEABLE.ComputerCore = v
+				elseif class == "jamming_device" and not AURA.INTERFACEABLE.Jammer then
+					AURA.INTERFACEABLE.Jammer = v
+				elseif class == "stargazer_ls_core" and not AURA.INTERFACEABLE.LSCore then
+					AURA.INTERFACEABLE.LSCore = v
+					if SHIPNAME ~= nil then
+						v:getWirelink()["Name"] = SHIPNAME
+					end
+				elseif class == "gmod_wire_teleporter" and not AURA.INTERFACEABLE.Adjuster then
+					AURA.INTERFACEABLE.Adjuster = v
+				elseif class == "transporter_pad" and not AURA.INTERFACEABLE.TransporterPad then
+					AURA.INTERFACEABLE.TransporterPad = v
+					AURA.populateBeamPositions(MAP)
+				elseif class == "gmod_wire_light" then
+					AURA.INTERFACEABLE.Lights[#AURA.INTERFACEABLE.Lights + 1] = v
+				elseif class == "sensor_array" and not AURA.INTERFACEABLE.SensorArray then
+					AURA.INTERFACEABLE.SensorArray = v
+				elseif class == "phaser_emitter" or class == "beam_emitter"
+					or class == "pulse_phaser_emitter" or class == "ship_laser" then
+					AURA.INTERFACEABLE.Emitters[#AURA.INTERFACEABLE.Emitters + 1] = v
+				elseif class == "ship_turret_base" then
+					AURA.INTERFACEABLE.Turrets[#AURA.INTERFACEABLE.Turrets + 1] = v
+				elseif class == "torpedo_launcher" then
+					AURA.INTERFACEABLE.Torpedos[#AURA.INTERFACEABLE.Torpedos + 1] = v
+				elseif class == "heavy_missile_pod" then
+					AURA.INTERFACEABLE.Launchers[#AURA.INTERFACEABLE.Launchers + 1] = v
+				elseif class == "st_forcefield_emitter" then
+					AURA.INTERFACEABLE.Forcefields[#AURA.INTERFACEABLE.Forcefields + 1] = v
+				elseif class == "transporter" and not AURA.INTERFACEABLE.AsgardTransporter then
+					AURA.INTERFACEABLE.AsgardTransporter = v
+					AURA.populateBeamPositions(MAP)
+				elseif class == "tscm_tv" and not AURA.INTERFACEABLE.TV then
+					AURA.INTERFACEABLE.TV = v
+				elseif class == "gmod_wire_gyroscope" then
+					AURA.INTERFACEABLE.Gyros[#AURA.INTERFACEABLE.Gyros + 1] = v
+				elseif class == "keeper_emitter" then
+					AURA.INTERFACEABLE.Keepers[#AURA.INTERFACEABLE.Keepers + 1] = v
+				elseif class == "gmod_wire_soundemitter" then
+					AURA.INTERFACEABLE.Sound[#AURA.INTERFACEABLE.Sound + 1] = v
+				elseif class == "gmod_wire_las_receiver" then
+					AURA.INTERFACEABLE.LPRecievers[#AURA.INTERFACEABLE.LPRecievers + 1] = v
+				elseif class == "ship_cannon" then
+					AURA.INTERFACEABLE.ShipCannons[#AURA.INTERFACEABLE.ShipCannons + 1] = v
 				end
-			elseif class == "gmod_wire_gps" then
-				if not LETTERS.A then -- Check to see if the table is populated by calling upon a letter
-					AURA.populateLetters()
-				end
-				AURA.INTERFACEABLE.GPSs[#AURA.INTERFACEABLE.GPSs + 1] = v
-			elseif class == "gmod_wire_value" then
-				SHIPNAME = v:getWirelink()["1"]
-			elseif class == "ship_core" and not AURA.INTERFACEABLE.Core then
-				AURA.INTERFACEABLE.Core = v
-			elseif class == "st_shield_emitter" and not AURA.INTERFACEABLE.Shield then
-				AURA.INTERFACEABLE.Shield = v
-				AURA.populateWarpPositions(MAP)
-			elseif (class == "ship_drive" or class == "quantum_slipstream_drive") and not AURA.INTERFACEABLE.Drive then
-				AURA.INTERFACEABLE.Drive = v
-				AURA.popluateShieldDirections()
-			elseif (class == "cloaking_generator" or class == "st_cloaking_device") and not AURA.INTERFACEABLE.Cloak then
-				AURA.INTERFACEABLE.Cloak = v
-			elseif class == "computer_core" and not AURA.INTERFACEABLE.ComputerCore then
-				AURA.INTERFACEABLE.ComputerCore = v
-			elseif class == "jamming_device" and not AURA.INTERFACEABLE.Jammer then
-				AURA.INTERFACEABLE.Jammer = v
-			elseif class == "stargazer_ls_core" and not AURA.INTERFACEABLE.LSCore then
-				AURA.INTERFACEABLE.LSCore = v
-				if SHIPNAME ~= nil then
-					v:getWirelink()["Name"] = SHIPNAME
-				end
-			elseif class == "gmod_wire_teleporter" and not AURA.INTERFACEABLE.Adjuster then
-				AURA.INTERFACEABLE.Adjuster = v
-			elseif class == "transporter_pad" and not AURA.INTERFACEABLE.TransporterPad then
-				AURA.INTERFACEABLE.TransporterPad = v
-				AURA.populateBeamPositions(MAP)
-			elseif class == "gmod_wire_light" then
-				AURA.INTERFACEABLE.Lights[#AURA.INTERFACEABLE.Lights + 1] = v
-			elseif class == "sensor_array" and not AURA.INTERFACEABLE.SensorArray then
-				AURA.INTERFACEABLE.SensorArray = v
-			elseif class == "phaser_emitter" or class == "beam_emitter"
-				or class == "pulse_phaser_emitter" or class == "ship_laser" then
-				AURA.INTERFACEABLE.Emitters[#AURA.INTERFACEABLE.Emitters + 1] = v
-			elseif class == "ship_turret_base" then
-				AURA.INTERFACEABLE.Turrets[#AURA.INTERFACEABLE.Turrets + 1] = v
-			elseif class == "torpedo_launcher" then
-				AURA.INTERFACEABLE.Torpedos[#AURA.INTERFACEABLE.Torpedos + 1] = v
-			elseif class == "heavy_missile_pod" then
-				AURA.INTERFACEABLE.Launchers[#AURA.INTERFACEABLE.Launchers + 1] = v
-			elseif class == "st_forcefield_emitter" then
-				AURA.INTERFACEABLE.Forcefields[#AURA.INTERFACEABLE.Forcefields + 1] = v
-			elseif class == "transporter" and not AURA.INTERFACEABLE.AsgardTransporter then
-				AURA.INTERFACEABLE.AsgardTransporter = v
-				AURA.populateBeamPositions(MAP)
-			elseif class == "tscm_tv" and not AURA.INTERFACEABLE.TV then
-				AURA.INTERFACEABLE.TV = v
-			elseif class == "gmod_wire_gyroscope" then
-				AURA.INTERFACEABLE.Gyros[#AURA.INTERFACEABLE.Gyros + 1] = v
-			elseif class == "keeper_emitter" then
-				AURA.INTERFACEABLE.Keepers[#AURA.INTERFACEABLE.Keepers + 1] = v
-			elseif class == "gmod_wire_soundemitter" then
-				AURA.INTERFACEABLE.Sound[#AURA.INTERFACEABLE.Sound + 1] = v
-			elseif class == "gmod_wire_las_receiver" then
-				AURA.INTERFACEABLE.LPRecievers[#AURA.INTERFACEABLE.LPRecievers + 1] = v
-			elseif class == "ship_cannon" then
-				AURA.INTERFACEABLE.ShipCannons[#AURA.INTERFACEABLE.ShipCannons + 1] = v
 			end
-		end
+		)
 		bsay("Finished finding interfaceable entities.")
 	end
 
@@ -1283,6 +1281,7 @@ if SERVER then -- Server Side
 		timer.simple(5,function() AURA.populateTargetTypes() end)
 		timer.simple(7,function() AURA.UTILITY.positionKeepers("Startup") end)
 		timer.simple(8,function() AURA.UTILITY.positionCannons("Startup") end)
+		timer.simple(9,function() AURA.UTILITY.startupMessage() end)
 	end
 
 	-- now listen to chat
