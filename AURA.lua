@@ -35,13 +35,6 @@ if SERVER then -- Server Side
 	-- A string (name of ship)
 	local SHIPNAME
 
-	-- This is your target
-	local TARGET = nil
-	-- This is your targets current damage status
-	-- This is used to check if they turned off damage
-	-- in the middle of the fight
-	local TARGETStatus
-
 	--[[
 	These are the tables that hold data the processor will use
 	Each one will only be populated it if the corrisponding
@@ -85,8 +78,28 @@ if SERVER then -- Server Side
 
 	-- The target information
 	AURA.Target = {}
-	AURA.Target.Entity = null
-	AURA.Target.Position = null
+	AURA.Target.Entity = nil
+	AURA.Target.Status = nil
+
+	-- Ship information stored in a table. 
+	-- This will be constantly updated at any time that seems best.
+	-- This is more of a caching service for modules
+	AURA.DATA 				= {}
+	AURA.DATA.SCHP 			= 0
+	AURA.DATA.SCPlating 	= 0
+	AURA.DATA.SCArmor 		= 0
+	AURA.DATA.ShieldHP		= 0
+	AURA.DATA.ShieldFront 	= 0
+	AURA.DATA.ShieldBack	= 0
+	AURA.DATA.ShieldLeft 	= 0
+	AURA.DATA.ShieldRight 	= 0
+	AURA.DATA.ShieldTop 	= 0
+	AURA.DATA.ShieldBottom 	= 0
+	AURA.DATA.ShieldOn 		= 0
+	AURA.DATA.LSOn			= 0
+	AURA.DATA.CloakOn 		= 0
+	AURA.DATA.JammerOn		= 0
+	AURA.DATA.FFOn 			= 0
 
 	-- Sound information
 	AURA.SOUNDS = {}
@@ -300,15 +313,15 @@ if SERVER then -- Server Side
 	timer.create("FindInShip",3,0,function() AURA.UTILITY.findInShip() end)
 
    function AURA.UTILITY.targetDamageStatusChanged()
-		if TARGET and TARGET:isValid() then
-			if TARGETStatus then
-				TAR = TARGET
+		if AURA.Target.Entity and AURA.Target.Entity:isValid() then
+			if AURA.Target.Status then
+				TAR = AURA.Target.Entity
 				if TAR ~= "player" then
 					TAR = TAR:owner()
 				end
-				if TAR:hasDamageEnabled() ~= TARGETStatus then
-					TARGETStatus = TAR:hasDamageEnabled()
-					bsay(TAR:name() .. " has changed their damage status to: " .. tostring(TARGETStatus))
+				if TAR:hasDamageEnabled() ~= AURA.Target.Status then
+					AURA.Target.Status = TAR:hasDamageEnabled()
+					bsay(TAR:name() .. " has changed their damage status to: " .. tostring(AURA.Target.Status))
 				end
 			end
 		else
@@ -454,12 +467,14 @@ if SERVER then -- Server Side
 					AURA.popluateShieldDirections()
 				elseif (class == "cloaking_generator" or class == "st_cloaking_device") and not AURA.INTERFACEABLE.Cloak then
 					AURA.INTERFACEABLE.Cloak = v
+					AURA.DATA.CloakOn = v:getWirelink()["Active"]
 				elseif class == "computer_core" and not AURA.INTERFACEABLE.ComputerCore then
 					AURA.INTERFACEABLE.ComputerCore = v
 				elseif class == "jamming_device" and not AURA.INTERFACEABLE.Jammer then
 					AURA.INTERFACEABLE.Jammer = v
 				elseif class == "stargazer_ls_core" and not AURA.INTERFACEABLE.LSCore then
 					AURA.INTERFACEABLE.LSCore = v
+					AURA.DATA.LSOn = v:getWirelink()["Active"]
 					if SHIPNAME ~= nil then
 						v:getWirelink()["Name"] = SHIPNAME
 					end
@@ -602,17 +617,16 @@ if SERVER then -- Server Side
 	function AURA.COMMANDS.LifeSupport(e)
 		local LifeSupportEmitter = AURA.INTERFACEABLE.LSCore
 		if LifeSupportEmitter then
+			AURA.DATA.LSOn = LifeSupportEmitter:getWirelink()["Active"]
 			if e == "status" then
-				local LSStatus = LifeSupportEmitter:getWirelink()["Active"]
-				if LSStatus == 1 then
+				if AURA.DATA.LSOn == 1 then
 					bsay("Life support is currently active.")
 				else
 					bsay("Life support is currently inactive.")
 				end
 			else
-				local LSStatus = LifeSupportEmitter:getWirelink()["Active"]
 				if e then
-					if LSStatus == 1 then
+					if AURA.DATA.LSOn == 1 then
 						bsay("Life Support is already enabled.")
 						AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
 					else
@@ -620,7 +634,7 @@ if SERVER then -- Server Side
 						LifeSupportEmitter:getWirelink()["Activate"] = e
 					end
 				else
-					if LSStatus == 0 then
+					if AURA.DATA.LSOn == 0 then
 						bsay("Life Support is already disabled.")
 						AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
 					else
@@ -629,6 +643,7 @@ if SERVER then -- Server Side
 					end
 				end
 			end
+			AURA.DATA.LSOn = LifeSupportEmitter:getWirelink()["Active"]
 		else
 			bsay("No Life Support Connected. Standing by.")
 			AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
@@ -639,17 +654,16 @@ if SERVER then -- Server Side
 	function  AURA.COMMANDS.Cloak(e)
 		local CloakEmitter = AURA.INTERFACEABLE.Cloak
 		if CloakEmitter then
+			AURA.DATA.CloakOn = CloakEmitter:getWirelink()["Active"]
 			if e == "status" then
-				local CStatus = CloakEmitter:getWirelink()["Active"]
-				if CStatus == 1 then
+				if AURA.DATA.CloakOn == 1 then
 					bsay("Cloak is currently active.")
 				else
 					bsay("Cloak is currently inactive.")
 				end
 			else
-				local CStatus = CloakEmitter:getWirelink()["Active"]
 				if e then
-					if CStatus == 1 then
+					if AURA.DATA.CloakOn == 1 then
 						bsay("Cloak is already enabled.")
 						AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
 					else
@@ -657,7 +671,7 @@ if SERVER then -- Server Side
 						CloakEmitter:getWirelink()["Activate"] = e
 					end
 				else
-					if CStatus == 0 then
+					if AURA.DATA.CloakOn == 0 then
 						bsay("Cloak is already disabled.")
 						AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
 					else
@@ -666,6 +680,7 @@ if SERVER then -- Server Side
 					end
 				end
 			end
+			AURA.DATA.CloakOn = CloakEmitter:getWirelink()["Active"]
 		else
 			bsay("No Cloak Connected. Standing by.")
 			AURA.UTILITY.PlaySound(AURA.SOUNDS.Error,4,1)
@@ -676,17 +691,16 @@ if SERVER then -- Server Side
 	function AURA.COMMANDS.Jammer(e)
 		local JammerEmitter = AURA.INTERFACEABLE.Jammer
 		if JammerEmitter then
+			AURA.DATA.JammerOn = JammerEmitter:getWirelink()["Active"]
 			if e == "status" then
-				local JStatus = JammerEmitter:getWirelink()["Active"]
-				if JStatus == 1 then
+				if AURA.DATA.JammerOn == 1 then
 					bsay("Jammer is currently active.")
 				else
 					bsay("Jammer is currently inactive.")
 				end
 			else
-				local JStatus = JammerEmitter:getWirelink()["Active"]
 				if e then
-					if JStatus == 1 then
+					if AURA.DATA.JammerOn == 1 then
 						bsay("Jammer is already enabled.")
 						AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
 					else
@@ -694,7 +708,7 @@ if SERVER then -- Server Side
 						JammerEmitter:getWirelink()["Activate"] = e
 					end
 				else
-					if JStatus == 0 then
+					if AURA.DATA.JammerOn == 0 then
 						bsay("Jammer is already disabled.")
 						AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
 					else
@@ -703,6 +717,7 @@ if SERVER then -- Server Side
 					end
 				end
 			end
+			AURA.DATA.JammerOn = JammerEmitter:getWirelink()["Active"]
 		else
 			bsay("No Jammer Connected. Standing by.")
 			AURA.UTILITY.PlaySound(AURA.SOUNDS.Error,4,1)
@@ -713,17 +728,16 @@ if SERVER then -- Server Side
 	function AURA.COMMANDS.Forcefields(e)
 		local ForcefieldEmitters = AURA.INTERFACEABLE.Forcefields
 		if #ForcefieldEmitters > 0 then
+			AURA.DATA.FFOn = ForcefieldEmitters[1]:getWirelink()["Active"]
 			if e == "status" then
-				local FStatus = ForcefieldEmitters[1]:getWirelink()["Active"]
-				if FStatus == 1 then
+				if AURA.DATA.FFOn == 1 then
 					bsay("Forcefields are currently active.")
 				else
 					bsay("Forcefields are currently inactive.")
 				end
 			else
-				local FStatus = ForcefieldEmitters[1]:getWirelink()["Active"]
 				if e then
-					if FStatus == 1 then
+					if AURA.DATA.FFOn == 1 then
 						bsay("Forcefields is already enabled.")
 						AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
 					else
@@ -735,7 +749,7 @@ if SERVER then -- Server Side
 						end
 					end
 				else
-					if FStatus == 0 then
+					if AURA.DATA.FFOn == 0 then
 						bsay("Forcefields is already disabled.")
 						AURA.UTILITY.PlaySound(AURA.SOUNDS.Deny,4,1)
 					else
@@ -748,6 +762,7 @@ if SERVER then -- Server Side
 					end
 				end
 			end
+			AURA.DATA.FFOn = ForcefieldEmitters[1]:getWirelink()["Active"]
 		else
 			bsay("No Forcefields Connected. Standing by.")
 			AURA.UTILITY.PlaySound(AURA.SOUNDS.Error,4,1)
@@ -758,18 +773,18 @@ if SERVER then -- Server Side
 	function AURA.COMMANDS.Shield(e)
 		local ShieldEmitter = AURA.INTERFACEABLE.Shield
 		if ShieldEmitter then
+			AURA.DATA.ShieldOn = ShieldEmitter:getWirelink()["Active"]
 			if SHIELDDIR[e] then
 				bsay("Divirting shield power to " .. e .. ".")
 				ShieldEmitter:getWirelink()["Divert Power"] = SHIELDDIR[e]
+				AURA.DATA.ShieldDiv = SHIELDDIR[e]
 			elseif e == "status" then
-				local SStatus = ShieldEmitter:getWirelink()["Active"]
 				if SStatus == 1 then
 					bsay("Shield are currently active.")
 				else
 					bsay("Shield are currently inactive.")
 				end
 			else
-				local SStatus = ShieldEmitter:getWirelink()["Active"]
 				if e == 1 then
 					if SStatus == 1 then
 						bsay("Shield is already enabled.")
@@ -788,6 +803,7 @@ if SERVER then -- Server Side
 					end
 				end
 			end
+			AURA.DATA.ShieldOn = ShieldEmitter:getWirelink()["Active"]
 		else
 			bsay("No Shield Connected. Standing by.")
 			AURA.UTILITY.PlaySound(AURA.SOUNDS.Error,4,1)
@@ -806,6 +822,7 @@ if SERVER then -- Server Side
 				bsay(SHIPNAME .. " is now at green status.")
 
 				AURA.INTERFACEABLE.Shield:getWirelink()["Activate"] = 0
+				AURA.DATA.ShieldOn = 0
 
 				if Core then
 					Core:getWirelink()["Enable Plating"] = 0
@@ -815,6 +832,7 @@ if SERVER then -- Server Side
 					local FF = AURA.INTERFACEABLE.Forcefields[ i ]
 					if not FF then break end
 					FF:getWirelink()["Activate"] = 0
+					AURA.DATA.FFOn = 0
 				end
 
 				for i = 1, #AURA.INTERFACEABLE.PROPS.Modbridge do
@@ -840,6 +858,7 @@ if SERVER then -- Server Side
 				bsay(SHIPNAME .. " is now at yellow alert! Defences enabled.")
 
 				AURA.INTERFACEABLE.Shield:getWirelink()["Activate"] = 1
+				AURA.DATA.ShieldOn = 1
 
 				if Core then
 					Core:getWirelink()["Enable Plating"] = 1
@@ -849,6 +868,7 @@ if SERVER then -- Server Side
 					local FF = AURA.INTERFACEABLE.Forcefields[ i ]
 					if not FF then break end
 					FF:getWirelink()["Activate"] = 1
+					AURA.DATA.FFOn = 1
 				end
 
 				for i = 1, #AURA.INTERFACEABLE.PROPS.Modbridge do
@@ -876,14 +896,16 @@ if SERVER then -- Server Side
 				bsay(SHIPNAME .. " is now at red alert!")
 
 				AURA.INTERFACEABLE.Shield:getWirelink()["Activate"] = 1
+				AURA.DATA.ShieldOn = 1
 
 				for i = 1, #AURA.INTERFACEABLE.Forcefields do
 					local FF = AURA.INTERFACEABLE.Forcefields[ i ]
 					if not FF then break end
 					FF:getWirelink()["Activate"] = 1
+					AURA.DATA.FFOn = 1
 				end
 
-				if Core ~= nil then
+				if Core then
 					Core:getWirelink()["Enable Plating"] = 1
 				end
 
@@ -912,8 +934,9 @@ if SERVER then -- Server Side
 				bsay(SHIPNAME .. " is now at blue alert!")
 
 				AURA.INTERFACEABLE.Shield:getWirelink()["Activate"] = 0
+				AURA.DATA.ShieldOn = 0
 
-				if Core ~= nil then
+				if Core then
 					Core:getWirelink()["Enable Plating"] = 1
 				end
 
@@ -921,6 +944,7 @@ if SERVER then -- Server Side
 					local FF = AURA.INTERFACEABLE.Forcefields[ i ]
 					if not FF then break end
 					FF:getWirelink()["Activate"] = 1
+					AURA.DATA.FFOn = 1
 				end
 
 				for i = 1, #AURA.INTERFACEABLE.PROPS.Modbridge do
@@ -1024,13 +1048,13 @@ if SERVER then -- Server Side
 	function AURA.COMMANDS.Target(e,f,g)
 		if f == "" or f == nil then
 			if e == "this" or e == "that" then
-				TARGET = OWNER:aimEntity()
-				if TARGET then
-					local Owner = TARGET:owner()
+				AURA.Target.Entity = OWNER:aimEntity()
+				if AURA.Target.Entity then
+					local Owner = AURA.Target.Entity:owner()
 					if Owner and Owner:isValid() then
-						TARGETStatus = Owner:hasDamageEnabled()
-						bsay("Targeting: " .. TARGET:class() .. ". Owned by: " .. Owner)
-						bsay("Owner has damage enabled?: " .. tostring(TARGETStatus))
+						AURA.Target.Status = Owner:hasDamageEnabled()
+						bsay("Targeting: " .. AURA.Target.Entity:class() .. ". Owned by: " .. Owner)
+						bsay("Owner has damage enabled?: " .. tostring(AURA.Target.Status))
 						timer.start("CheckDamageStatus")
 					end
 				else
@@ -1040,36 +1064,36 @@ if SERVER then -- Server Side
 					end
 				end
 			else
-				TARGET = find.playerByName(e)
-				if TARGET == nil then
+				AURA.Target.Entity = find.playerByName(e)
+				if AURA.Target.Entity == nil then
 					if not g then
 						bsay("Invalid Player!")
 						AURA.UTILITY.PlaySound(AURA.SOUNDS.Error,4,1)
 					end
 				else
-					TARGETStatus = TARGET:hasDamageEnabled()
-					bsay("Targeting: " .. TARGET:name())
-					bsay("Damage enabled?: " .. tostring(TARGETStatus))
+					AURA.Target.Status = AURA.Target.Entity:hasDamageEnabled()
+					bsay("Targeting: " .. AURA.Target.Entity:name())
+					bsay("Damage enabled?: " .. tostring(AURA.Target.Status))
 					timer.start("CheckDamageStatus")
 				end
 			end
 		elseif f == "direct" then
 			bsay("Targeting: " .. e)
-			TARGET = e
+			AURA.Target.Entity = e
 		elseif TARGETTYPES[f] then
 			local Owner = find.playerByName(e)
 			if Owner then
 				find.byClass(TARGETTYPES[f], function(e)
 					if e:owner() == Owner then
-						TARGET = e
+						AURA.Target.Entity = e
 						return
 					end
 				end)
-				if TARGET ~= nil then
-					TARGETStatus = Owner:hasDamageEnabled()
+				if AURA.Target.Entity ~= nil then
+					AURA.Target.Status = Owner:hasDamageEnabled()
 					if Owner and Owner:isValid() then
-						bsay("Targeting " .. TARGET:class() .. " owned by: " .. Owner:name())
-						bsay("Owner has damage enabled?: " .. tostring(TARGETStatus))
+						bsay("Targeting " .. AURA.Target.Entity:class() .. " owned by: " .. Owner:name())
+						bsay("Owner has damage enabled?: " .. tostring(AURA.Target.Status))
 						timer.start("CheckDamageStatus")
 					end
 				else
@@ -1091,12 +1115,12 @@ if SERVER then -- Server Side
 			end
 		end
 
-		if AURA.INTERFACEABLE.SensorArray and TARGET then
-			AURA.INTERFACEABLE.SensorArray:getWirelink()["Target"] = TARGET
+		if AURA.INTERFACEABLE.SensorArray and AURA.Target.Entity then
+			AURA.INTERFACEABLE.SensorArray:getWirelink()["Target"] = AURA.Target.Entity
 		end
 
-		if AURA.INTERFACEABLE.ComputerCore and TARGET and TARGET:isValid() then
-			AURA.INTERFACEABLE.ComputerCore:getWirelink()["Target"] = TARGET
+		if AURA.INTERFACEABLE.ComputerCore and AURA.Target.Entity and AURA.Target.Entity:isValid() then
+			AURA.INTERFACEABLE.ComputerCore:getWirelink()["Target"] = AURA.Target.Entity
 		end
 	end
 
@@ -1301,14 +1325,14 @@ if SERVER then -- Server Side
 						if attacker:name() ~= nil then
 							bsay("Taking damage from: " .. attacker:name())
 							AURA.COMMANDS.Target(attacker:name(), "core", 1)
-							if TARGET:isValid() == false then
+							if AURA.Target.Entity:isValid() == false then
 								AURA.COMMANDS.Target(attacker, "direct", 1)
 							end
 						else
 							bsay("Taking damage from: " .. attacker:class())
 						end
 					end
-					if TARGET == nil and TARGET:isValid() == false then
+					if AURA.Target.Entity == nil and AURA.Target.Entity:isValid() == false then
 						AURA.COMMANDS.Target(attacker:name())
 					end
 					if inflictor then
